@@ -3,14 +3,15 @@ import Navbar from './Components/Navbar';
 import Login from './Components/Login';
 import Register from './Components/Register';
 import Home from './User/Home';
-import AdminDashboard from './Admin/AdminDashborad';
 import Recommendation from './User/Recommendation';
 import Profil from './User/Profil';
 import Hotels from './User/Hotels';
+import RatingForm from './User/RatingForm';
 import ProtectedRoute from './Components/ProtectedRoute';
+import AdminDashboard from './Admin/AdminDashborad';
 import AdminHotels from './Admin/AdminHotels';
 import AdminProfil from './Admin/AdminProfil';
-import RatingForm from './User/RatingForm';
+import AdminManage from './Admin/AdminManage';
 
 function App() {
   return (
@@ -89,6 +90,15 @@ function App() {
           element={
             <ProtectedRoute role="admin">
               <AdminProfil />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/adminmanage"
+          element={
+            <ProtectedRoute role="admin">
+              <AdminManage />
             </ProtectedRoute>
           }
         />

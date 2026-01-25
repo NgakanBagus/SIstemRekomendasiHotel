@@ -35,10 +35,8 @@ function RatingForm() {
         const data = await res.json();
         setMessage(data.message);
 
-        // Kembali ke daftar hotel
-        setTimeout(() => {
-            navigate("/hotels");
-        }, 1500);
+        navigate("/hotels", { replace: true });
+
     };
 
     return (

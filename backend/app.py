@@ -5,6 +5,8 @@ import json
 import numpy as np
 import os
 from werkzeug.utils import secure_filename
+import subprocess
+from sqlalchemy.sql import func
 
 app = Flask(__name__)
 CORS(app)  
@@ -32,8 +34,10 @@ class Hotel(db.Model):
     name = db.Column(db.String(150))
     location = db.Column(db.String(150))
     facility = db.Column(db.String(500))
+    room_type = db.Column(db.String(500))
     rating = db.Column(db.Float)
-    price = db.Column(db.Float)
+    original_price = db.Column(db.Float)
+    discount_price = db.Column(db.Float)
 
 class Rating(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -59,9 +63,11 @@ with app.app_context():
                 Hotel(
                     name=row["Hotel Name"],
                     location=row["location"],
+                    room_type=row.get("Room Type", "-"),
                     facility=row["Facility"],
                     rating=row["Rating"],
-                    price=row["Price after discount"]
+                    original_price=row["Original price"],
+                    discount_price=row["Price after discount"]
                 )
             )
         db.session.commit()
@@ -126,23 +132,25 @@ def recommend():
     min_rating = float(data.get("min_rating", 0)) 
     location = data.get("location", "").lower() 
     facility = data.get("facility", "").lower()
+    room_type = data.get("room_type", "").lower()
 
-    # Filter berdasarkan preferensi
     filtered = [] 
-    for h in data_filtered: 
-        if not (min_price <= h["Price after discount"] <= max_price): 
-            continue 
-        if h["Rating"] < min_rating: 
-            continue 
-        if location not in h["location"].lower(): 
-            continue 
-        if facility not in h["Facility"].lower(): 
-            continue 
+    for h in data_filtered:
+        if not (min_price <= h["Price after discount"] <= max_price):
+            continue
+        if h["Rating"] < min_rating:
+            continue
+        if location not in h["location"].lower():
+            continue
+        if facility not in h["Facility"].lower():
+            continue
+        if room_type and room_type not in h.get("Room Type", "").lower():
+            continue
         filtered.append(h)
 
     return jsonify({
         "success": True,
-        "results": filtered[:10]  # kirim 10 rekomendasi
+        "results": filtered[:10]  
     })
 
 # ---------------- FILTER OPTIONS ----------------
@@ -160,23 +168,46 @@ def dropdown():
         if h.get("Facility")
     )))
 
+    room_types = sorted(list(set(
+        rt.strip()
+        for h in data_filtered
+        for rt in h.get("Room Type", "").split(",")
+        if h.get("Room Type")
+    )))
+
     return jsonify({
         "locations": locations,
-        "facilities": facilities
+        "facilities": facilities,
+        "room_types": room_types
     })
 
 # ---------------- LIST HOTEL ----------------
 @app.route("/api/hotels", methods=["GET"])
 def get_hotels():
+    user_id = request.args.get("user_id", type=int)
+
     hotels = Hotel.query.all()
-    result = [{
-        "id": h.id,
-        "name": h.name,
-        "location": h.location,
-        "facility": h.facility,
-        "rating": h.rating,
-        "price": h.price
-    } for h in hotels]
+    result = []
+
+    for h in hotels:
+        rating_user = None
+        if user_id:
+            r = Rating.query.filter_by(user_id=user_id, hotel_id=h.id).first()
+            if r:
+                rating_user = r.rating
+
+        rating_final = rating_user if rating_user is not None else h.rating
+
+        result.append({
+            "id": h.id,
+            "name": h.name,
+            "location": h.location,
+            "room_type": h.room_type,
+            "facility": h.facility,
+            "rating": rating_final,
+            "original_price": h.original_price,
+            "discount_price": h.discount_price
+        })
 
     return jsonify(result)
 
@@ -295,9 +326,93 @@ def admin():
         "hotels": [h.name for h in hotels]
     })
 
+@app.route("/api/admin/users", methods=["GET"])
+def admin_get_users():
+    users = User.query.all()
+    result = [{
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role
+    } for user in users]
+    return jsonify({"success": True, "users": result})
 
-# ============================================
-# RUN SERVER
-# ============================================
+@app.route("/api/admin/users", methods=["POST"])
+def adminadd_user():
+    data = request.json
+
+    if User.query.filter_by(username=data["username"]).first():
+        return jsonify({"success": False, "message": "Username ada"}), 400
+    
+    new_user = User(
+        username=data["username"],
+        email=data["email"],
+        password=data["password"],
+        role=data.get("role", "user")  
+    )
+    db.session.add(new_user)
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "User berhasil ditambahkan"})
+
+@app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
+def admindelete_user(user_id):
+    user = User.query.get(user_id)
+
+    if not user:
+        return jsonify({"success": False, "message": "User tidak ditemukan"}), 404
+
+    if user.username == "admin":
+        return jsonify({"success": False, "message": "Admin utama tidak boleh dihapus"}), 403
+
+    db.session.delete(user)
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "User berhasil dihapus"})
+
+@app.route("/api/admin/hotels", methods=["POST"])
+def add_hotel():
+    data = request.json
+    h = Hotel(
+        name=data["name"],
+        location=data["location"],
+        room_type=data.get("room_type", "-"),
+        facility=data["facility"],
+        rating=data["rating"],
+        original_price=data["original_price"],
+        discount_price=data["discount_price"]
+    )
+    db.session.add(h)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Hotel ditambahkan"})
+
+@app.route("/api/admin/hotels/<int:id>", methods=["DELETE"])
+def delete_hotel(id):
+    h = Hotel.query.get(id)
+    if not h:
+        return jsonify({"success": False, "message": "Hotel tidak ditemukan"}), 404
+    db.session.delete(h)
+    db.session.commit()
+    return jsonify({"success": True, "message": "Hotel dihapus"})
+
+def load_model():
+    global hybrid_sim, data_filtered
+    with open("model/hybrid_model.json") as f:
+        model_json = json.load(f)
+    hybrid_sim = np.array(model_json["hybrid_sim"])
+    data_filtered = model_json["data_filtered"]
+    print("Model baru")
+
+load_model()
+
+@app.route("/api/admin/retrain", methods=["POST"])
+def retrain():
+    try:
+        subprocess.run(["python", "retrainmodel.py"], check=True)
+        load_model()
+        return jsonify({"success": True, "message": "Model diretrain & dimuat ulang"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(debug=True)

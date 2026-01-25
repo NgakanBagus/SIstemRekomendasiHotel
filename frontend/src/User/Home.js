@@ -14,17 +14,14 @@ function Home() {
         .then(res => res.json())
         .then(json => {
     
-          // Hotel per lokasi
           const locData = Object.entries(json.hotel_per_location).map(
             ([location, total]) => ({ location, total })
           );
     
-          // Harga (grouping sederhana)
           const priceChart = Object.entries(json.price_distribution).map(
             ([range, total]) => ({ range, total })
           );
     
-          // Rating
           const ratingMap = {};
           json.rating_distribution.forEach(r => {
             const key = r.toFixed(1);
@@ -57,7 +54,7 @@ function Home() {
     
           <div className="max-w-5xl mx-auto pt-20 p-4">
             <h1 className="text-4xl font-bold mb-4">
-              Sistem Rekomendasi Hotel ICHM
+              System Rekomendasi Hotel ICHM
             </h1>
     
             <p className="text-gray-600 mb-8">

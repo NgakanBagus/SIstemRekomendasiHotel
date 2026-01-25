@@ -14,11 +14,15 @@ function SidebarAdmin() {
                     </Link>
 
                     <Link to="/admin/hotels" className="hover:text-blue-600 transition">
-                        Manage Hotels
+                        Kelola Hotel
+                    </Link>
+
+                    <Link to="/admin/adminmanage" className="hover:text-blue-600 transition">
+                        Kelola User
                     </Link>
 
                     <Link to="/admin/profile" className="hover:text-blue-600 transition">
-                        Manage Profile
+                        Profil Admin
                     </Link>
 
                     <Link to="/login" className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition">
