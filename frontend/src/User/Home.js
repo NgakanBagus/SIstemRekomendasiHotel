@@ -8,6 +8,9 @@ function Home() {
     const [ratingData, setRatingData] = useState([]);
     const [topRooms, setTopRooms] = useState([])
     const [topLocations, setTopLocations] = useState([])
+    const [feedback, setFeedback] = useState("");
+    const [feedbackRating, setFeedbackRating] = useState("");
+    const [message, setMessage] = useState("");
 
     useEffect(() => {
       fetch("http://localhost:5000/api/eda")
@@ -48,13 +51,44 @@ function Home() {
         .catch(err => console.error("EDA error:", err));
     }, []);
 
+    const FeedbackSub = async (e) => {
+      e.preventDefault()
+
+      const payload  = {
+        rating: feedbackRating,
+        comment: feedback,
+      }
+
+      try{
+        const res = await fetch ("http://localhost:5000/api/feedback", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          credentials: "include", 
+          body: JSON.stringify(payload),
+        })
+
+        if(res.ok){
+          setMessage("Terima Kasih Atas Feedbacknya")
+          setFeedback("")
+          setFeedbackRating("")
+        }
+        else{
+          setMessage("Gagal")
+        }
+      }
+      catch(err){
+        console.error(err)
+        setMessage("Error Server")
+      }
+    }
+
     return (
         <div className="min-h-screen bg-gray-100">
           <Navbar />
     
           <div className="max-w-5xl mx-auto pt-20 p-4">
             <h1 className="text-4xl font-bold mb-4">
-              System Rekomendasi Hotel ICHM
+              Sistem Rekomendasi Hotel ICHM
             </h1>
     
             <p className="text-gray-600 mb-8">
@@ -160,6 +194,55 @@ function Home() {
               </ResponsiveContainer>
             </div>
           </div>
+
+            <div className="bg-white p-6 rounded-xl shadow mt-12">
+              <h2 className="text-xl font-bold mb-4">
+                Feedback Pengguna
+              </h2>
+
+              <form onSubmit={FeedbackSub} className="space-y-4">
+                <div>
+                  <label className="block font-medium mb-1">
+                    Apakah rekomendasi yang diberikan sesuai?
+                  </label>
+                  <select
+                    className="w-full border rounded p-2"
+                    value={feedbackRating}
+                    onChange={(e) => setFeedbackRating(e.target.value)}
+                    required
+                  >
+                    <option value="">-- Pilih --</option>
+                    <option value="Sangat Sesuai">Sangat Sesuai</option>
+                    <option value="Cukup Sesuai">Cukup Sesuai</option>
+                    <option value="Kurang Sesuai">Kurang Sesuai</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-medium mb-1">
+                    Alasan
+                  </label>
+                  <textarea
+                    className="w-full border rounded p-2"
+                    rows="3"
+                    placeholder="Tuliskan pendapat Anda..."
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-indigo-700 transition"
+                >
+                  Kirim Feedback
+                </button>
+
+                {message && (
+                  <p className="mt-2 text-sm text-green-600">{message}</p>
+                )}
+              </form>
+            </div>
         </div>
       );
     }

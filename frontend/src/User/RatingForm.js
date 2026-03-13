@@ -42,18 +42,18 @@ function RatingForm() {
     return (
         <div className="pt-24 max-w-lg mx-auto px-6">
             <h1 className="text-3xl font-bold mb-6">
-                Tambah / Edit Rating
+                Edit Rating
             </h1>
 
             <form onSubmit={submitRating} className="space-y-4">
                 <input
                     type="number"
-                    placeholder="Rating (1-5)"
+                    placeholder="Rating"
                     className="w-full border p-2 rounded"
                     value={rating}
                     onChange={(e) => setRating(e.target.value)}
                     min="1"
-                    max="5"
+                    max="10"
                     required
                 />
 

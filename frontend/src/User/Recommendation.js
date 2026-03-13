@@ -128,9 +128,10 @@ function Recommendation() {
                     {results.map((h, i) => (
                         <div key={i} className="bg-white p-4 rounded-xl shadow">
                             <h4 className="text-lg font-bold">{h["Hotel Name"]}</h4>
-                            <p>Lokasi: {h.location}</p>
-                            <p>Tipe Kamar: {h["Room Type"] || "-"}</p>
-                            <p>Rating: ⭐ {h.Rating}</p>
+                            <p><strong>Lokasi: </strong>{h.location}</p>
+                            <p><strong>Tipe Kamar: </strong>{h["Room Type"] || "-"}</p>
+                            <p><strong>Fasilitas: </strong>{h["Facility"] || "-"}</p>
+                            <p><strong>Rating: </strong> ⭐{h.Rating}</p>
 
                             <div className="mt-3">
                                 {h["Original price"] !== h["Price after discount"] && (

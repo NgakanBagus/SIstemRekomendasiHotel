@@ -18,7 +18,7 @@ function AdminDashboard() {
             <NavbarAdmin />
 
             {/* Main Content */}
-            <div className="p-6 w-full">
+            <div className="p-6 w-full mt-16">
                 <h1 className="text-2xl font-bold mb-6">Dashboard Admin</h1>
 
                 {/* Statistik */}
