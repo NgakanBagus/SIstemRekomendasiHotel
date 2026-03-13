@@ -147,8 +147,73 @@ hybrid_sim = normalize_matrix(hybrid_sim)
 
 print(f"Hybrid ICHM selesai (alpha={alpha:.2f})")
 
+#K Means Clustering
+def euclidean(a, b):
+    return np.sqrt(np.sum((a - b) ** 2))
+
+def manual_kmeans(X, k, max_iter=100, tol=1e-4):
+    n_samples, n_features = X.shape
+    np.random.seed(42)
+
+    random_idx = np.random.choice(n_samples, k, replace=False)
+    centroids = X[random_idx]
+
+    for _ in range(max_iter):
+        labels = np.zeros(n_samples, dtype=int)
+        clusters = [[] for _ in range(k)]
+
+        for i, point in enumerate(X):
+            distances = [euclidean(point, c) for c in centroids]
+            cluster_id = np.argmin(distances)
+            labels[i] = cluster_id
+            clusters[cluster_id].append(point)
+
+        new_centroids = np.array([
+            np.mean(cluster, axis=0) if len(cluster) > 0 else centroids[i]
+            for i, cluster in enumerate(clusters)
+        ])
+
+        shift = np.linalg.norm(new_centroids - centroids)
+        if shift < tol:
+            break
+
+        centroids = new_centroids
+
+    return labels, centroids
+
+k_cluster = 6 
+labels, centroids = manual_kmeans(final_matrix, k_cluster)
+
+data_filtered["Cluster"] = labels + 1
+
+print("Clustering selesai")
+for c in range(1, k_cluster + 1):
+    jumlah = (data_filtered["Cluster"] == c).sum()
+    print(f"Cluster {c}: {jumlah} hotel")
+
+#Evaluasi
+y_true = data_filtered["Rating"].values
+
+y_pred = hybrid_sim.mean(axis=1)
+
+y_pred = ((y_pred - y_pred.min()) /
+          (y_pred.max() - y_pred.min() + 1e-9)) * \
+          (y_true.max() - y_true.min()) + y_true.min()
+
+mae = np.mean(np.abs(y_pred - y_true))
+
+accuracy = 1 - (mae / (y_true.max() - y_true.min()))
+print("=== Evaluasi Hybrid Recommendation System (Algoritma ICHM) ===")
+print(f"Akurasi Estimasi : {accuracy:.3f}")
+print(f"MAE              : {mae:.3f}")
+
 #Simpan Model
 model = {
+    "evaluation":{
+        "accuracy":round(float(accuracy), 3),
+        "mae":round(float(mae), 3)
+    },
+
     "hybrid_sim": hybrid_sim.tolist(),
     "content_sim": content_sim.tolist(),
     "collab_sim": collab_sim.tolist(),
@@ -160,7 +225,8 @@ model = {
         "Room Type",
         "Rating",
         "Original price",       
-        "Price after discount"     
+        "Price after discount",
+        "Cluster"     
     ]].to_dict(orient="records"),
 }
 with open("model/hybrid_model.json", "w") as f:

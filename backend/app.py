@@ -7,9 +7,15 @@ import os
 from werkzeug.utils import secure_filename
 import subprocess
 from sqlalchemy.sql import func
+import re
+from flask_login import ( LoginManager, login_user, login_required, logout_user, current_user, UserMixin)
 
 app = Flask(__name__)
-CORS(app)  
+app.config.update(
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False,  
+)
+CORS(app, supports_credentials=True)  
 
 UPLOAD_FOLDER = "static/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -17,8 +23,10 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hotels.db'
 app.secret_key = 'rekomendasi_hotel_secret'
 db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
 
-class User(db.Model):
+class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -38,6 +46,7 @@ class Hotel(db.Model):
     rating = db.Column(db.Float)
     original_price = db.Column(db.Float)
     discount_price = db.Column(db.Float)
+    image = db.Column(db.String(200))
 
 class Rating(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -45,13 +54,43 @@ class Rating(db.Model):
     hotel_id = db.Column(db.Integer)
     rating = db.Column(db.Float)
 
+class Feedback(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    hotel_id = db.Column(db.Integer, db.ForeignKey("hotel.id"), nullable=True)
+    satisfaction = db.Column(db.String(50))  
+    comment = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+    user = db.relationship("User", backref="feedbacks")
+    hotel = db.relationship("Hotel", backref="feedbacks")
+
 with open("model/hybrid_model.json") as f:
     model_json = json.load(f)
 
 hybrid_sim = np.array(model_json["hybrid_sim"])
 data_filtered = model_json["data_filtered"]
 
-print("✅ Model JSON berhasil dimuat.")
+print("Model JSON berhasil dimuat")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def normaliz(s):
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+def hotel_image(name):
+    dir_hotel = os.path.join(BASE_DIR, "static", "hotel")
+
+    if not os.path.exists(dir_hotel):
+        return "default.jpg"
+    
+    target = normaliz(name)
+
+    for file in os.listdir(dir_hotel):
+        fname, ext = os.path.splitext(file)
+        if normaliz(fname) == target and ext.lower() in [".jpg", ".jpeg", ".png"]:
+            return file
+        
+    return "default.jpg"
 
 with app.app_context():
 
@@ -59,6 +98,7 @@ with app.app_context():
 
     if Hotel.query.count() == 0:
         for row in data_filtered:
+            image_name = hotel_image(row["Hotel Name"])
             db.session.add(
                 Hotel(
                     name=row["Hotel Name"],
@@ -67,7 +107,8 @@ with app.app_context():
                     facility=row["Facility"],
                     rating=row["Rating"],
                     original_price=row["Original price"],
-                    discount_price=row["Price after discount"]
+                    discount_price=row["Price after discount"],
+                    image=image_name
                 )
             )
         db.session.commit()
@@ -84,6 +125,17 @@ with app.app_context():
         db.session.commit()
         print("✅ Admin dibuat")
 
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    return jsonify({
+        "success": False,
+        "message": "Unauthorized"
+    }), 401
+
 # ---------------- LOGIN ----------------
 @app.route("/api/login", methods=["POST"])
 def login():
@@ -95,6 +147,8 @@ def login():
 
     if not user:
         return jsonify({"success": False, "message": "Login gagal"}), 400
+    
+    login_user(user)
 
     return jsonify({
         "success": True,
@@ -104,6 +158,12 @@ def login():
             "role": user.role
         }
     })
+
+@app.route("/api/logout", methods=["POST"])
+@login_required
+def logout():
+    logout_user()
+    return jsonify({"success": True, "message": "Logout berhasil"})
 
 # ---------------- REGISTER ----------------
 @app.route("/api/register", methods=["POST"])
@@ -125,58 +185,109 @@ def register():
 # ---------------- RECOMMENDATION ----------------
 @app.route("/api/recommend", methods=["POST"])
 def recommend():
+
     data = request.json
 
-    min_price = float(data.get("min_price", 0)) 
-    max_price = float(data.get("max_price", 999999)) 
-    min_rating = float(data.get("min_rating", 0)) 
-    location = data.get("location", "").lower() 
+    min_price = float(data.get("min_price", 0))
+    max_price = float(data.get("max_price", 999999))
+    min_rating = float(data.get("min_rating", 0))
+    location = data.get("location", "").lower()
     facility = data.get("facility", "").lower()
     room_type = data.get("room_type", "").lower()
 
-    filtered = [] 
+    scores = []
+
     for h in data_filtered:
+
         if not (min_price <= h["Price after discount"] <= max_price):
             continue
         if h["Rating"] < min_rating:
             continue
-        if location not in h["location"].lower():
+        if location and location not in h["location"].lower():
             continue
-        if facility not in h["Facility"].lower():
+        if facility and facility not in h["Facility"].lower():
             continue
         if room_type and room_type not in h.get("Room Type", "").lower():
             continue
-        filtered.append(h)
+
+        score = 0
+
+        if location in h["location"].lower():
+            score += 2
+
+        if facility in h["Facility"].lower():
+            score += 2
+
+        if room_type in h.get("Room Type", "").lower():
+            score += 1
+
+        score += h["Rating"] / 10
+
+        scores.append((score, h))
+
+    scores.sort(key=lambda x: x[0], reverse=True)
+
+    results = [h for score, h in scores[:10]]
 
     return jsonify({
         "success": True,
-        "results": filtered[:10]  
+        "results": results
     })
 
 # ---------------- FILTER OPTIONS ----------------
+import re
+
 @app.route("/api/options", methods=["GET"])
 def dropdown():
-    locations = sorted(list(set(
-        h["location"] for h in data_filtered
-        if h.get("location") 
-    )))
 
-    facilities = sorted(list(set(
-        f.strip()
+    # LOCATION
+    locations = sorted({
+        h["location"].strip()
         for h in data_filtered
-        for f in h["Facility"].split(",")
-        if h.get("Facility")
-    )))
+        if h.get("location")
+    })
 
-    room_types = sorted(list(set(
-        rt.strip()
-        for h in data_filtered
-        for rt in h.get("Room Type", "").split(",")
-        if h.get("Room Type")
-    )))
+    # FACILITIES (AUTO CLEAN)
+    facilities = set()
+
+    for h in data_filtered:
+        if not h.get("Facility"):
+            continue
+
+        for f in h["Facility"].split(","):
+            f = f.lower().strip()
+
+            # hapus simbol seperti - / ()
+            f = re.sub(r'[^a-z0-9\s]', '', f)
+
+            # rapikan spasi
+            f = re.sub(r'\s+', ' ', f)
+
+            if f:
+                facilities.add(f)
+
+    facilities = sorted(facilities)
+
+    # ROOM TYPES (AUTO CLEAN)
+    room_types = set()
+
+    for h in data_filtered:
+        if not h.get("Room Type"):
+            continue
+
+        for r in h["Room Type"].split(","):
+            r = r.lower().strip()
+
+            r = re.sub(r'[^a-z0-9\s]', '', r)
+            r = re.sub(r'\s+', ' ', r)
+
+            if r:
+                room_types.add(r)
+
+    room_types = sorted(room_types)
 
     return jsonify({
-        "locations": locations,
+        "locations": list(locations),
         "facilities": facilities,
         "room_types": room_types
     })
@@ -184,29 +295,20 @@ def dropdown():
 # ---------------- LIST HOTEL ----------------
 @app.route("/api/hotels", methods=["GET"])
 def get_hotels():
-    user_id = request.args.get("user_id", type=int)
-
     hotels = Hotel.query.all()
     result = []
 
     for h in hotels:
-        rating_user = None
-        if user_id:
-            r = Rating.query.filter_by(user_id=user_id, hotel_id=h.id).first()
-            if r:
-                rating_user = r.rating
-
-        rating_final = rating_user if rating_user is not None else h.rating
-
         result.append({
             "id": h.id,
             "name": h.name,
             "location": h.location,
             "room_type": h.room_type,
             "facility": h.facility,
-            "rating": rating_final,
+            "rating": h.rating,
             "original_price": h.original_price,
-            "discount_price": h.discount_price
+            "discount_price": h.discount_price,
+            "image": f"http://localhost:5000/static/hotel/{h.image}" if h.image else None
         })
 
     return jsonify(result)
@@ -228,6 +330,20 @@ def rating():
         db.session.add(new_rating)
 
     db.session.commit()
+
+    hotel = Hotel.query.get(hotel_id)
+    all_rating = Rating.query.filter_by(hotel_id=hotel_id).all()
+
+    if all_rating:
+        avg_user_rating = sum(r.rating for r in all_rating) / len(all_rating)
+        final_rating = (hotel.rating + avg_user_rating) / 2
+        hotel.rating = round(final_rating, 2)
+
+    db.session.commit()
+    return jsonify({
+        "success": True,
+        "message": "Rating berhasil dibuat"
+    })
 
     return jsonify({"success": True, "message": "Rating disimpan"})
 
@@ -315,6 +431,20 @@ def eda():
         "top_10_room_types": top_rooms
     })
 
+@app.route("/api/feedback", methods=["POST"])
+@login_required
+def feedback():
+    data = request.json
+    new_feedback = Feedback(
+        user_id=current_user.id,
+        satisfaction=data["rating"],
+        comment=data["comment"]
+    )
+    db.session.add(new_feedback)
+    db.session.commit()
+    return {"status": "ok"}, 200
+
+
 # ---------------- ADMIN ----------------
 @app.route("/api/admin", methods=["GET"])
 def admin():
@@ -380,7 +510,8 @@ def add_hotel():
         facility=data["facility"],
         rating=data["rating"],
         original_price=data["original_price"],
-        discount_price=data["discount_price"]
+        discount_price=data["discount_price"],
+        image=data["image"]
     )
     db.session.add(h)
     db.session.commit()
@@ -395,13 +526,33 @@ def delete_hotel(id):
     db.session.commit()
     return jsonify({"success": True, "message": "Hotel dihapus"})
 
+@app.route("/api/admin/hotels/<int:id>", methods=["PUT"])
+def update_hotel_price(id):
+    data = request.json
+    hotel = Hotel.query.get(id)
+    if not hotel:
+        return jsonify({"message": "Hotel tidak ditemukan"}), 404
+    
+    hotel.original_price = data.get("original_price")
+    hotel.discount_price = data.get("discount_price")
+
+    db.session.commit()
+    return jsonify({"message": "Hotel diupdate"})
+
 def load_model():
-    global hybrid_sim, data_filtered
-    with open("model/hybrid_model.json") as f:
-        model_json = json.load(f)
-    hybrid_sim = np.array(model_json["hybrid_sim"])
-    data_filtered = model_json["data_filtered"]
-    print("Model baru")
+    global MODEL, hybrid_sim, data_filtered, evaluation
+
+    with open("model/hybrid_model.json", "r") as f:
+        MODEL = json.load(f)
+
+    hybrid_sim = np.array(MODEL["hybrid_sim"])
+    data_filtered = MODEL["data_filtered"]
+    evaluation = MODEL.get("evaluation", {})
+
+    print("Model berhasil dimuat")
+    if evaluation:
+        print(f"Akurasi: {evaluation.get('accuracy')}, MAE: {evaluation.get('mae')}")
+
 
 load_model()
 
@@ -410,9 +561,44 @@ def retrain():
     try:
         subprocess.run(["python", "retrainmodel.py"], check=True)
         load_model()
-        return jsonify({"success": True, "message": "Model diretrain & dimuat ulang"})
+        evaluation = MODEL.get("evaluation", {})
+        return jsonify({"success": True, 
+                        "message": "Model diretrain & dimuat ulang", 
+                        "accuracy":evaluation.get("accuracy"),
+                        "mae": evaluation.get("mae")
+                    })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+    
+@app.route("/api/admin/feedbacks", methods=["GET"])
+def get_all_feedbacks():
+    feedbacks = (
+        db.session.query(
+            Feedback.id,
+            Feedback.satisfaction,
+            Feedback.comment,
+            Feedback.created_at,
+            User.username
+        )
+        .outerjoin(User, Feedback.user_id == User.id)  
+        .order_by(Feedback.created_at.desc())
+        .all()
+    )
+
+    result = []
+    for f in feedbacks:
+        result.append({
+            "id": f.id,
+            "username": f.username,
+            "satisfaction": f.satisfaction,
+            "comment": f.comment,
+            "created_at": f.created_at.strftime("%Y-%m-%d %H:%M")
+        })
+
+    return jsonify({
+        "success": True,
+        "feedbacks": result
+    })
 
 if __name__ == "__main__":
     app.run(debug=True)
