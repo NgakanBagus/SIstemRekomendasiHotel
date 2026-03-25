@@ -34,34 +34,21 @@ else:
 id_to_name = dict(zip(df_hotels["id"], df_hotels["Hotel Name"]))
 pivot.columns = [id_to_name.get(c, c) for c in pivot.columns]
 
-data_hotels = set(df_hotels["Hotel Name"].values)
-
-if len(pivot) > 0:
-    pivot_hotels = set(pivot.columns)
-    common_hotels = sorted(pivot_hotels & data_hotels)
-else:
-    common_hotels = sorted(data_hotels)
+all_hotels = df_hotels["Hotel Name"].tolist()
+pivot = pivot.reindex(columns=all_hotels, fill_value=0)
 
 data_filtered = (
-    df_hotels.drop_duplicates(subset="Hotel Name")
+    df_hotels
+    .drop_duplicates(subset="Hotel Name")
     .set_index("Hotel Name")
-    .loc[common_hotels]
+    .loc[all_hotels]
     .reset_index()
 )
 
 if len(pivot) > 0:
-    pivot_filtered = pivot[common_hotels]
-    rating_matrix = pivot_filtered.values.astype(float)
+    rating_matrix = pivot.values.astype(float)
 else:
     rating_matrix = data_filtered["Rating"].values.reshape(1, -1)
-
-if len(pivot) > 0:
-    if list(data_filtered["Hotel Name"]) != list(pivot_filtered.columns):
-        data_filtered = (
-            data_filtered.set_index("Hotel Name")
-            .loc[pivot_filtered.columns]
-            .reset_index()
-        )
 
 print("Sinkronisasi hotel selesai:", len(data_filtered))
 
@@ -181,7 +168,7 @@ def manual_kmeans(X, k, max_iter=100, tol=1e-4):
 
     return labels, centroids
 
-k_cluster = 6 
+k_cluster = min(6, len(data_filtered))
 labels, centroids = manual_kmeans(final_matrix, k_cluster)
 
 data_filtered["Cluster"] = labels + 1

@@ -9,6 +9,7 @@ import subprocess
 from sqlalchemy.sql import func
 import re
 from flask_login import ( LoginManager, login_user, login_required, logout_user, current_user, UserMixin)
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.config.update(
@@ -118,7 +119,7 @@ with app.app_context():
         admin = User(
             username="admin",
             email="admin@example.com",
-            password="admin123",
+            password=generate_password_hash("admin123"),
             role="admin"
         )
         db.session.add(admin)
@@ -140,12 +141,9 @@ def unauthorized():
 @app.route("/api/login", methods=["POST"])
 def login():
     data = request.json
-    user = User.query.filter_by(
-        username=data["username"],
-        password=data["password"]
-    ).first()
+    user = User.query.filter_by(username=data["username"]).first()
 
-    if not user:
+    if not user or not check_password_hash(user.password, data["password"]):
         return jsonify({"success": False, "message": "Login gagal"}), 400
     
     login_user(user)
@@ -172,10 +170,12 @@ def register():
     if User.query.filter_by(username=data["username"]).first():
         return jsonify({"success": False, "message": "Username sudah ada"}), 400
     
+    hashed_password = generate_password_hash(data["password"])
+    
     new_user = User(
         username=data["username"],
         email=data["email"],
-        password=data["password"]
+        password=hashed_password
     )
     db.session.add(new_user)
     db.session.commit()
