@@ -502,20 +502,41 @@ def admindelete_user(user_id):
 
 @app.route("/api/admin/hotels", methods=["POST"])
 def add_hotel():
-    data = request.json
+
+    name = request.form.get("name")
+    location = request.form.get("location")
+    facility = request.form.get("facility")
+    room_type = request.form.get("room_type")
+    rating = request.form.get("rating")
+    original_price = request.form.get("original_price")
+    discount_price = request.form.get("discount_price")
+
+    image_file = request.files.get("image")
+
+    filename = None
+    if image_file:
+        filename = secure_filename(image_file.filename)
+        image_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        image_file.save(image_path)
+
     h = Hotel(
-        name=data["name"],
-        location=data["location"],
-        room_type=data.get("room_type", "-"),
-        facility=data["facility"],
-        rating=data["rating"],
-        original_price=data["original_price"],
-        discount_price=data["discount_price"],
-        image=data["image"]
+        name=name,
+        location=location,
+        room_type=room_type,
+        facility=facility,
+        rating=float(rating),
+        original_price=float(original_price),
+        discount_price=float(discount_price),
+        image=filename
     )
+
     db.session.add(h)
     db.session.commit()
-    return jsonify({"success": True, "message": "Hotel ditambahkan"})
+
+    return jsonify({
+        "success": True,
+        "message": "Hotel berhasil ditambahkan"
+    })
 
 @app.route("/api/admin/hotels/<int:id>", methods=["DELETE"])
 def delete_hotel(id):
