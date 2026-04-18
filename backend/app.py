@@ -358,7 +358,9 @@ def profile(user_id):
     if request.method == "POST":
         user.username = request.form.get("username")
         user.email = request.form.get("email")
-        user.password = request.form.get("password")
+        new_password = request.form.get("password")
+        if new_password:
+            user.password = generate_password_hash(new_password)
         user.address = request.form.get("address")
         user.phone = request.form.get("phone")
 
@@ -376,7 +378,6 @@ def profile(user_id):
     return jsonify({
         "username": user.username,
         "email": user.email,
-        "password": user.password,
         "address": user.address,
         "phone": user.phone,
         "photo": user.photo
