@@ -8,14 +8,16 @@ function Recommendation() {
         max_price: "",
         min_rating: "",
         location: "",
-        facility: "",
-        room_type: ""
+        facility: [],
+        room_type: []
     });
 
     const [results, setResults] = useState([]);
     const [locations, setLocations] = useState([]);
     const [facilities, setFacilities] = useState([]);
     const [roomTypes, setRoomTypes] = useState([]);
+    const [facilitySearch, setFacilitySearch] = useState("");
+    const [roomTypeSearch, setRoomTypeSearch] = useState("");
 
     useEffect(() => {
         axios.get("http://localhost:5000/api/options")
@@ -52,6 +54,14 @@ function Recommendation() {
             currency: "IDR",
             minimumFractionDigits: 0
         }).format(value);
+
+    const filteredFacilities = facilities.filter((f) =>
+    f.toLowerCase().includes(facilitySearch.toLowerCase())
+    );
+
+    const filteredRoomTypes = roomTypes.filter((rt) =>
+        rt.toLowerCase().includes(roomTypeSearch.toLowerCase())
+    );
 
     return (
         <div className="min-h-screen bg-gray-100">
@@ -94,27 +104,85 @@ function Recommendation() {
                             ))}
                         </select>
 
-                        <select
-                            className="input"
-                            value={pref.facility}
-                            onChange={(e) => setPref({ ...pref, facility: e.target.value })}
-                        >
-                            <option value="">Semua Fasilitas</option>
-                            {facilities.map((f, i) => (
-                                <option key={i} value={f}>{f}</option>
-                            ))}
-                        </select>
+                        <div className="border p-3 rounded max-h-44 overflow-y-auto">
+                            <p className="font-semibold mb-2">Fasilitas</p>
 
-                        <select
-                            className="input"
-                            value={pref.room_type}
-                            onChange={(e) => setPref({ ...pref, room_type: e.target.value })}
-                        >
-                            <option value="">Semua Tipe Kamar</option>
-                            {roomTypes.map((rt, i) => (
-                                <option key={i} value={rt}>{rt}</option>
-                            ))}
-                        </select>
+                            <input
+                                type="text"
+                                placeholder="Cari fasilitas..."
+                                className="border p-2 rounded w-full mb-3"
+                                value={facilitySearch}
+                                onChange={(e) => setFacilitySearch(e.target.value)}
+                            />
+
+                            <div className="grid grid-cols-2 gap-2">
+                                {filteredFacilities.map((f, i) => (
+                                    <label key={i} className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            value={f}
+                                            checked={pref.facility.includes(f)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setPref({
+                                                        ...pref,
+                                                        facility: [...pref.facility, f]
+                                                    });
+                                                } else {
+                                                    setPref({
+                                                        ...pref,
+                                                        facility: pref.facility.filter(
+                                                            item => item !== f
+                                                        )
+                                                    });
+                                                }
+                                            }}
+                                        />
+                                        {f}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="border p-3 rounded max-h-44 overflow-y-auto">
+                            <p className="font-semibold mb-2">Tipe Kamar</p>
+
+                            <input
+                                type="text"
+                                placeholder="Cari tipe kamar..."
+                                className="border p-2 rounded w-full mb-3"
+                                value={roomTypeSearch}
+                                onChange={(e) => setRoomTypeSearch(e.target.value)}
+                            />
+
+                            <div className="grid grid-cols-2 gap-2">
+                                {filteredRoomTypes.map((rt, i) => (
+                                    <label key={i} className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            value={rt}
+                                            checked={pref.room_type.includes(rt)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setPref({
+                                                        ...pref,
+                                                        room_type: [...pref.room_type, rt]
+                                                    });
+                                                } else {
+                                                    setPref({
+                                                        ...pref,
+                                                        room_type: pref.room_type.filter(
+                                                            item => item !== rt
+                                                        )
+                                                    });
+                                                }
+                                            }}
+                                        />
+                                        {rt}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
                     </div>
 
                     <button className="mt-4 bg-blue-600 text-white p-2 rounded">

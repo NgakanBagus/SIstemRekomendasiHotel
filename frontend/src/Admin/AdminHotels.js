@@ -47,41 +47,50 @@ function AdminHotels() {
     }, [])
 
     const addHotel = async () => {
-      const formData = new FormData();
-    
-      formData.append("name", form.name);
-      formData.append("location", form.location);
-      formData.append("facility", form.facility);
-      formData.append("room_type", form.room_type);
-      formData.append("rating", form.rating);
-      formData.append("original_price", form.original_price);
-      formData.append("discount_price", form.discount_price);
-    
-      if (form.image) {
-        formData.append("image", form.image);
+      try{
+        const formData = new FormData();
+      
+        formData.append("name", form.name);
+        formData.append("location", form.location);
+        formData.append("facility", form.facility);
+        formData.append("room_type", form.room_type);
+        formData.append("rating", form.rating);
+        formData.append("original_price", form.original_price);
+        formData.append("discount_price", form.discount_price);
+      
+        if (form.image) {
+          formData.append("image", form.image);
+        }
+      
+        const res = await fetch("http://localhost:5000/api/admin/hotels", {
+          method: "POST",
+          body: formData   
+        });
+      
+        const data = await res.json();
+        alert(data.message);
+      
+        setForm({
+          name: "",
+          location: "",
+          facility: "",
+          room_type: "",
+          rating: "",
+          original_price: "",
+          discount_price: "",
+          image: null
+        });
+      
+        loadHotels();
+      } catch(error){
+        console.error(error)
+        alert(
+          error.message === "Failed to fetch"
+            ? "Tambah data gagal"
+            : error.message
+        )
       }
-    
-      const res = await fetch("http://localhost:5000/api/admin/hotels", {
-        method: "POST",
-        body: formData   
-      });
-    
-      const data = await res.json();
-      alert(data.message);
-    
-      setForm({
-        name: "",
-        location: "",
-        facility: "",
-        room_type: "",
-        rating: "",
-        original_price: "",
-        discount_price: "",
-        image: null
-      });
-    
-      loadHotels();
-    };    
+    }    
 
     const deleteHotel = async (id) => {
         if (!window.confirm("Yakin hapus hotel ini?")) return;
