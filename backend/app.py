@@ -192,40 +192,43 @@ def recommend():
     max_price = float(data.get("max_price", 999999))
     min_rating = float(data.get("min_rating", 0))
     location = data.get("location", "").lower()
-    facility = data.get("facility", "").lower()
-    room_type = data.get("room_type", "").lower()
+    facilities = data.get("facility", [])
+    room_types = data.get("room_type", [])
 
     scores = []
 
-    for h in data_filtered:
+    for i, h in enumerate(data_filtered):
 
         if not (min_price <= h["Price after discount"] <= max_price):
             continue
+
         if h["Rating"] < min_rating:
-            continue
-        if location and location not in h["location"].lower():
-            continue
-        if facility and facility not in h["Facility"].lower():
-            continue
-        if room_type and room_type not in h.get("Room Type", "").lower():
             continue
 
         score = 0
 
-        if location in h["location"].lower():
+        if location.lower() in str(h["location"]).lower():
             score += 2
 
-        if facility in h["Facility"].lower():
-            score += 2
+        for facility in facilities:
+            if facility.lower() in str(h["Facility"]).lower():
+                score += 2
 
-        if room_type in h.get("Room Type", "").lower():
-            score += 1
+        for room in room_types:
+            if room.lower() in str(h["Room Type"]).lower():
+                score += 1
 
         score += h["Rating"] / 10
 
+        h["score"] = round(score, 3)
+
         scores.append((score, h))
 
-    scores.sort(key=lambda x: x[0], reverse=True)
+    scores = sorted(
+        scores,
+        key=lambda x: (x[0], x[1]["Rating"]),
+        reverse=True
+    )
 
     results = [h for score, h in scores[:10]]
 
@@ -503,41 +506,63 @@ def admindelete_user(user_id):
 
 @app.route("/api/admin/hotels", methods=["POST"])
 def add_hotel():
+    try: 
+        name = request.form.get("name")
+        location = request.form.get("location")
+        facility = request.form.get("facility")
+        room_type = request.form.get("room_type")
+        rating = request.form.get("rating")
+        original_price = request.form.get("original_price")
+        discount_price = request.form.get("discount_price")
 
-    name = request.form.get("name")
-    location = request.form.get("location")
-    facility = request.form.get("facility")
-    room_type = request.form.get("room_type")
-    rating = request.form.get("rating")
-    original_price = request.form.get("original_price")
-    discount_price = request.form.get("discount_price")
+        if not all([name, location, facility, rating, original_price, discount_price]):
+            return jsonify({
+                "success": False,
+                "message": "Semua field wajib diisi!"
+            }), 400
+        
+        try:
+            rating = float(rating)
+            original_price = float(original_price)
+            discount_price = float(discount_price)
+        except:
+            return jsonify({
+                "success": False,
+                "message": "Format angka tidak valid!"
+            }), 400
 
-    image_file = request.files.get("image")
+        image_file = request.files.get("image")
+        filename = None
 
-    filename = None
-    if image_file:
-        filename = secure_filename(image_file.filename)
-        image_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-        image_file.save(image_path)
+        if image_file:
+            filename = secure_filename(image_file.filename)
+            image_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+            image_file.save(image_path)
 
-    h = Hotel(
-        name=name,
-        location=location,
-        room_type=room_type,
-        facility=facility,
-        rating=float(rating),
-        original_price=float(original_price),
-        discount_price=float(discount_price),
-        image=filename
-    )
+        h = Hotel(
+            name=name,
+            location=location,
+            room_type=room_type,
+            facility=facility,
+            rating=float(rating),
+            original_price=float(original_price),
+            discount_price=float(discount_price),
+            image=filename
+        )
 
-    db.session.add(h)
-    db.session.commit()
+        db.session.add(h)
+        db.session.commit()
 
-    return jsonify({
-        "success": True,
-        "message": "Hotel berhasil ditambahkan"
-    })
+        return jsonify({
+            "success": True,
+            "message": "Hotel berhasil ditambahkan"
+        })
+    
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
 @app.route("/api/admin/hotels/<int:id>", methods=["DELETE"])
 def delete_hotel(id):
