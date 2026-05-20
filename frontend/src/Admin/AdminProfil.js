@@ -11,37 +11,71 @@ function AdminProfil()  {
 
     useEffect(() => {
         fetch(`http://localhost:5000/api/profile/${adminId}`)
-            .then(res => res.json())
-            .then(data => setForm(data))
-    }, [adminId])
+            .then((res) => res.json())
+            .then((data) =>
+                setForm({
+                    username: data.username || "",
+                    email: data.email || "",
+                    password: ""
+                })
+            );
+    }, [adminId]);
 
-    const ProfilSave = () => {
-        fetch(`http://localhost:5000/api/profile/${adminId}`, {
-            method: 'POST',
-            headers:{"Content-Type": "application/json"},
-            body: JSON.stringify(form)
-        }).then(() => alert("Profil update"))
-    }
+    const ProfilSave = async (e) => {
+        e.preventDefault();
+
+        try {
+            const formData = new FormData();
+
+            formData.append("username", form.username);
+            formData.append("email", form.email);
+            formData.append("password", form.password);
+
+            const res = await fetch(
+                `http://localhost:5000/api/profile/${adminId}`,
+                {
+                    method: "POST",
+                    body: formData
+                }
+            );
+
+            const data = await res.json();
+
+            if (data.success) {
+                alert("Profil berhasil diupdate");
+            } else {
+                alert(data.message);
+            }
+
+        } catch (error) {
+            console.error(error);
+            alert("Gagal update profil");
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gray-100">
-            {/* Navbar */}
             <NavbarAdmin />
 
-            {/* Konten Tengah */}
             <div className="flex justify-center items-center h-[calc(100vh-64px)]">
                 <div className="bg-white p-6 rounded shadow w-96">
                     <h1 className="text-2xl font-bold mb-6 text-center">
                         Profil Admin
                     </h1>
 
-                    <div className="flex flex-col gap-3">
+                    <form
+                        onSubmit={ProfilSave}
+                        className="flex flex-col gap-3"
+                    >
                         <input
                             className="border p-2 rounded"
                             placeholder="Username"
                             value={form.username}
-                            onChange={e =>
-                                setForm({ ...form, username: e.target.value })
+                            onChange={(e) =>
+                                setForm({
+                                    ...form,
+                                    username: e.target.value
+                                })
                             }
                         />
 
@@ -49,28 +83,34 @@ function AdminProfil()  {
                             className="border p-2 rounded"
                             placeholder="Email"
                             value={form.email}
-                            onChange={e =>
-                                setForm({ ...form, email: e.target.value })
+                            onChange={(e) =>
+                                setForm({
+                                    ...form,
+                                    email: e.target.value
+                                })
                             }
                         />
 
                         <input
                             type="password"
                             className="border p-2 rounded"
-                            placeholder="Password"
+                            placeholder="Password Baru"
                             value={form.password}
-                            onChange={e =>
-                                setForm({ ...form, password: e.target.value })
+                            onChange={(e) =>
+                                setForm({
+                                    ...form,
+                                    password: e.target.value
+                                })
                             }
                         />
 
                         <button
-                            onClick={ProfilSave}
+                            type="submit"
                             className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
                         >
                             Simpan
                         </button>
-                    </div>
+                    </form>
                 </div>
             </div>
         </div>
