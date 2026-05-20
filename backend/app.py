@@ -10,19 +10,25 @@ from sqlalchemy.sql import func
 import re
 from flask_login import ( LoginManager, login_user, login_required, logout_user, current_user, UserMixin)
 from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 app.config.update(
-    SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=False,  
+    SECRET_KEY=os.getenv("SECRET_KEY"),
+    SESSION_COOKIE_SAMESITE=os.getenv("SESSION_COOKIE_SAMESITE", "Lax"),
+    SESSION_COOKIE_SECURE=os.getenv("SESSION_COOKIE_SECURE", "False") == "True",
 )
 CORS(app, supports_credentials=True)  
 
 UPLOAD_FOLDER = "static/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///hotels.db'
-app.secret_key = 'rekomendasi_hotel_secret'
+app.config["UPLOAD_FOLDER"] = os.getenv("UPLOAD_FOLDER", "static/uploads")
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    "DATABASE_URL",
+    "sqlite:///hotels.db"
+)
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -119,7 +125,7 @@ with app.app_context():
         admin = User(
             username="admin",
             email="admin@example.com",
-            password=generate_password_hash("admin123"),
+            password=generate_password_hash(os.getenv("ADMIN_PASSWORD")),
             role="admin"
         )
         db.session.add(admin)
