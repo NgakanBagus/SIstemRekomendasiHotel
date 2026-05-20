@@ -12,8 +12,6 @@ instance/
 
 static/uploads/
 
-model/*.json
-
 .vscode/
 
 *.log
