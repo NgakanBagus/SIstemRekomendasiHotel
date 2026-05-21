@@ -2,6 +2,7 @@
 Sistem Rekomendasi Hotel ICHM merupakan sebuah sistem yang dapat digunakan untuk melakukan rekomendasi hotel sesuai dengan preferensi pengguna
 
 ### Cara Instalasi
-1. Clone kode pada github https://github.com/NgakanBagus/SIstemRekomendasiHotel untuk mendapatkan kode program
-2. Jalankan Backend dengan python app.py yang akan menghasilkan database sistem
-3. Jalankan Frontend dengan npm start yang akan menjalankan React dan menampilkan tampilan sistem
+1. Clone kode pada github https://github.com/NgakanBagus/SIstemRekomendasiHotel untuk mendapatkan kode program dan masuk ke folder projek sistem
+2. Masuk ke folder backend dan jalankan “pip install -r requirements.txt” untuk menginstall seluruh dependency, jika sudah, jalankan backend Flask dengan “python app.py”
+3. Masuk ke folder frontend dan jalankan “npm install” untuk menginstall Install dependency React, jika sudah, jalankan frontend React dengan “npm start”
+
